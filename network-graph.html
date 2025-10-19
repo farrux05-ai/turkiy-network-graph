@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutq Skeleti - Interaktiv Tahlil</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a1f 50%, #000000 100%);
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #graph-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: linear-gradient(135deg, rgba(20, 20, 50, 0.95) 0%, rgba(10, 10, 30, 0.95) 100%);
+            backdrop-filter: blur(20px);
+            padding: 25px;
+            border-radius: 20px;
+            border: 2px solid rgba(100, 200, 255, 0.4);
+            box-shadow: 0 10px 40px rgba(100, 200, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 100;
+            max-width: 320px;
+        }
+
+        .info-panel h2 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            color: #64d8ff;
+            text-shadow: 0 0 15px rgba(100, 216, 255, 0.6), 0 0 30px rgba(100, 216, 255, 0.3);
+            font-weight: 600;
+        }
+
+        .info-panel p {
+            font-size: 14px;
+            line-height: 1.7;
+            color: #c5c5c5;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: linear-gradient(135deg, rgba(20, 20, 50, 0.95) 0%, rgba(10, 10, 30, 0.95) 100%);
+            backdrop-filter: blur(20px);
+            padding: 20px;
+            border-radius: 20px;
+            border: 2px solid rgba(100, 200, 255, 0.4);
+            box-shadow: 0 10px 40px rgba(100, 200, 255, 0.2);
+            z-index: 100;
+        }
+
+        .legend h3 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #64d8ff;
+            font-weight: 600;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            margin-right: 12px;
+            box-shadow: 0 0 20px currentColor;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, rgba(20, 20, 50, 0.95) 0%, rgba(10, 10, 30, 0.95) 100%);
+            backdrop-filter: blur(20px);
+            padding: 20px;
+            border-radius: 20px;
+            border: 2px solid rgba(100, 200, 255, 0.4);
+            box-shadow: 0 10px 40px rgba(100, 200, 255, 0.2);
+            z-index: 100;
+        }
+
+        .controls button {
+            display: block;
+            width: 100%;
+            padding: 12px 24px;
+            margin: 8px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .controls button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .controls button:active {
+            transform: translateY(-1px);
+        }
+
+        .tooltip {
+            position: absolute;
+            background: linear-gradient(135deg, rgba(10, 10, 30, 0.98) 0%, rgba(20, 20, 40, 0.98) 100%);
+            backdrop-filter: blur(15px);
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 2px solid rgba(100, 200, 255, 0.6);
+            pointer-events: none;
+            font-size: 14px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        .tooltip-title {
+            font-weight: bold;
+            color: #64d8ff;
+            margin-bottom: 8px;
+            font-size: 16px;
+            text-shadow: 0 0 10px rgba(100, 216, 255, 0.5);
+        }
+
+        .tooltip-content {
+            color: #c5c5c5;
+            line-height: 1.6;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .link {
+            stroke-opacity: 0.35;
+            transition: all 0.3s ease;
+        }
+
+        .link:hover {
+            stroke-opacity: 0.85;
+            filter: drop-shadow(0 0 6px currentColor);
+        }
+
+        .node {
+            cursor: grab;
+            transition: all 0.3s ease;
+        }
+
+        .node:active {
+            cursor: grabbing;
+        }
+
+        .node:hover {
+            filter: drop-shadow(0 0 15px currentColor);
+        }
+
+        .node-label {
+            font-size: 12px;
+            fill: #ffffff;
+            text-anchor: middle;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.9), 0 0 5px rgba(0, 0, 0, 1), 2px 2px 4px rgba(0, 0, 0, 0.8);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { 
+                opacity: 0.6;
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 1;
+                transform: scale(1.05);
+            }
+        }
+
+        .stats {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, rgba(20, 20, 50, 0.95) 0%, rgba(10, 10, 30, 0.95) 100%);
+            backdrop-filter: blur(20px);
+            padding: 15px 20px;
+            border-radius: 15px;
+            border: 2px solid rgba(100, 200, 255, 0.4);
+            box-shadow: 0 10px 40px rgba(100, 200, 255, 0.2);
+            z-index: 100;
+            font-size: 13px;
+            color: #c5c5c5;
+        }
+
+        .stats-value {
+            color: #64d8ff;
+            font-weight: bold;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div id="graph-container">
+        <svg id="network-graph"></svg>
+        
+        <div class="info-panel">
+            <h2>🌐 Nutq Skeleti Tahlili</h2>
+            <p>Bu grafik nutqning asosiy tuzilmasini ko'rsatadi. Eng muhim tushunchalar markazda, ular orasidagi bog'lanishlar esa mazmuniy aloqalarni ifodalaydi.</p>
+            <p style="margin-top: 10px; font-size: 12px; opacity: 0.8;">💡 Katta tugunlar - ko'p ishlatiladigan atamalar</p>
+        </div>
+
+        <div class="legend">
+            <h3>🎨 Rang tizimi</h3>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #FF6B9D, #64D8FF, #9D84FF); color: #FF6B9D;"></div>
+                <span>Markaziy konseptlar</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #FFD93D, #FFB347, #FFA500); color: #FFD93D;"></div>
+                <span>Iqtisodiy atamalar</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #A8E6CF, #90EE90, #7FFFD4); color: #A8E6CF;"></div>
+                <span>Ekologik tushunchalar</span>
+            </div>
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 11px; opacity: 0.7;">
+                💡 Har bir tugun noyob rangga ega
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="resetGraph()">🔄 Qayta tiklash</button>
+            <button id="physicsBtn" onclick="togglePhysics()">⚡ Fizika: ON</button>
+            <button onclick="centerGraph()">🎯 Markazlash</button>
+        </div>
+
+        <div class="stats">
+            <div>Tugunlar: <span class="stats-value" id="nodeCount">0</span></div>
+            <div>Bog'lanishlar: <span class="stats-value" id="linkCount">0</span></div>
+        </div>
+
+        <div class="tooltip" id="tooltip">
+            <div class="tooltip-title" id="tooltip-title"></div>
+            <div class="tooltip-content" id="tooltip-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const data = {
+            links: [
+                {source: "Turkiy", target: "Hamkorlik", weight: 11},
+                {source: "Turkiy", target: "Rivojlantirish", weight: 11},
+                {source: "Turkiy", target: "Loyiha", weight: 10},
+                {source: "Hamkorlik", target: "Xalqaro", weight: 7},
+                {source: "Hamkorlik", target: "Sheriklik", weight: 5},
+                {source: "Rivojlantirish", target: "Investitsiya", weight: 3},
+                {source: "Rivojlantirish", target: "Infratuzilma", weight: 3},
+                {source: "Loyiha", target: "Tashabbus", weight: 7},
+                {source: "Savdo", target: "Transport", weight: 5},
+                {source: "Iqtisodiy", target: "Mahsulot", weight: 6},
+                {source: "Organik", target: "Yashil", weight: 4},
+                {source: "Toshkent", target: "O'rta karidor", weight: 2},
+                {source: "Sun'iy intelekt", target: "Rivojlantirish", weight: 2},
+                {source: "Yoshlar", target: "Kelajak", weight: 3}
+            ]
+        };
+
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        const svg = d3.select("#network-graph")
+            .attr("viewBox", [0, 0, width, height]);
+
+        const g = svg.append("g");
+
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            });
+
+        svg.call(zoom);
+
+        const nodes = Array.from(new Set(data.links.flatMap(l => [l.source, l.target]))).map(id => ({
+            id,
+            connections: data.links.filter(l => l.source === id || l.target === id).length
+        }));
+
+        document.getElementById('nodeCount').textContent = nodes.length;
+        document.getElementById('linkCount').textContent = data.links.length;
+
+        // Har bir tugun uchun alohida rang palitra
+        const nodeColors = {
+            "Turkiy": "#FF6B9D",           // Pushti - markaziy
+            "Hamkorlik": "#64D8FF",        // Moviy - markaziy
+            "Rivojlantirish": "#9D84FF",   // Binafsha - markaziy
+            "Loyiha": "#FFD93D",           // Sariq
+            "Xalqaro": "#FF85C1",          // Och pushti
+            "Sheriklik": "#A8E6CF",        // Yashil
+            "Investitsiya": "#FFB347",     // To'q sariq
+            "Infratuzilma": "#87CEEB",     // Och ko'k
+            "Tashabbus": "#DDA0DD",        // Plum
+            "Savdo": "#F08080",            // Coral
+            "Transport": "#98D8C8",        // Mint
+            "Iqtisodiy": "#FFB6C1",        // Och pushti
+            "Mahsulot": "#B0E57C",         // Limon yashil
+            "Organik": "#90EE90",          // Och yashil
+            "Yashil": "#7FFFD4",           // Aquamarine
+            "Toshkent": "#FFD700",         // Oltin
+            "O'rta karidor": "#FFA500",    // To'q sariq
+            "Sun'iy intelekt": "#BA55D3",  // To'q binafsha
+            "Yoshlar": "#FF69B4",          // Hot pink
+            "Kelajak": "#00CED1"           // Dark turquoise
+        };
+
+        const getNodeColor = (nodeId) => {
+            return nodeColors[nodeId] || "#64D8FF";
+        };
+
+        const radiusScale = d3.scaleLinear()
+            .domain([1, d3.max(nodes, d => d.connections)])
+            .range([20, 45]);
+
+        let simulation = d3.forceSimulation(nodes)
+            .force("link", d3.forceLink(data.links).id(d => d.id).distance(d => 120 + (11 - d.weight) * 8))
+            .force("charge", d3.forceManyBody().strength(-400))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(d => radiusScale(d.connections) + 20))
+            .force("x", d3.forceX(width / 2).strength(0.05))
+            .force("y", d3.forceY(height / 2).strength(0.05));
+
+        const link = g.append("g")
+            .selectAll("line")
+            .data(data.links)
+            .join("line")
+            .attr("class", "link")
+            .attr("stroke", d => {
+                // Har bir bog'lanish o'z rangida - source va target ranglarini aralashtirish
+                const sourceColor = d3.color(getNodeColor(d.source.id || d.source));
+                const targetColor = d3.color(getNodeColor(d.target.id || d.target));
+                
+                // Ikki rangni gradient orqali aralashtirish
+                const interpolator = d3.interpolateRgb(sourceColor, targetColor);
+                return interpolator(0.5); // O'rtada rang
+            })
+            .attr("stroke-width", d => 1.2 + Math.sqrt(d.weight) * 0.5)
+            .style("stroke-linecap", "round");
+
+        const node = g.append("g")
+            .selectAll("g")
+            .data(nodes)
+            .join("g")
+            .attr("class", "node")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        node.append("circle")
+            .attr("r", d => radiusScale(d.connections))
+            .attr("fill", d => getNodeColor(d.id))
+            .attr("stroke", d => {
+                const baseColor = getNodeColor(d.id);
+                return d3.color(baseColor).brighter(0.8);
+            })
+            .attr("stroke-width", 3.5)
+            .style("filter", d => `drop-shadow(0 0 ${radiusScale(d.connections) / 1.2}px ${getNodeColor(d.id)}) brightness(1.1)`);
+
+        node.append("text")
+            .attr("class", "node-label")
+            .attr("dy", d => radiusScale(d.connections) + 18)
+            .text(d => d.id)
+            .style("font-size", d => `${11 + d.connections * 0.8}px`);
+
+        const tooltip = d3.select("#tooltip");
+
+        node.on("mouseover", function(event, d) {
+            d3.select(this).select("circle")
+                .transition()
+                .duration(200)
+                .attr("r", radiusScale(d.connections) * 1.3);
+
+            const connectedLinks = data.links.filter(l => l.source.id === d.id || l.target.id === d.id);
+            
+            tooltip.select("#tooltip-title").text(d.id);
+            tooltip.select("#tooltip-content").html(
+                `<strong>Bog'lanishlar soni:</strong> ${d.connections}<br>` +
+                `<strong>Umumiy vazn:</strong> ${connectedLinks.reduce((sum, l) => sum + l.weight, 0)}<br>` +
+                `<strong>O'rtacha vazn:</strong> ${(connectedLinks.reduce((sum, l) => sum + l.weight, 0) / d.connections).toFixed(1)}`
+            );
+            tooltip.classed("visible", true)
+                .style("left", (event.pageX + 20) + "px")
+                .style("top", (event.pageY - 20) + "px");
+        })
+        .on("mouseout", function(event, d) {
+            d3.select(this).select("circle")
+                .transition()
+                .duration(200)
+                .attr("r", radiusScale(d.connections));
+
+            tooltip.classed("visible", false);
+        })
+        .on("click", function(event, d) {
+            const connectedNodes = new Set();
+            const connectedLinks = new Set();
+
+            data.links.forEach(l => {
+                if (l.source.id === d.id) {
+                    connectedNodes.add(l.target.id);
+                    connectedLinks.add(l);
+                }
+                if (l.target.id === d.id) {
+                    connectedNodes.add(l.source.id);
+                    connectedLinks.add(l);
+                }
+            });
+
+            node.style("opacity", n => n.id === d.id || connectedNodes.has(n.id) ? 1 : 0.15);
+            link.style("opacity", l => connectedLinks.has(l) ? 1 : 0.05);
+        });
+
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        let physicsEnabled = true;
+
+        function resetGraph() {
+            node.style("opacity", 1);
+            link.style("opacity", 0.6);
+            nodes.forEach(d => {
+                d.fx = null;
+                d.fy = null;
+            });
+            simulation.alpha(1).restart();
+        }
+
+        function togglePhysics() {
+            physicsEnabled = !physicsEnabled;
+            const btn = document.getElementById('physicsBtn');
+            if (physicsEnabled) {
+                simulation.alpha(1).restart();
+                btn.textContent = "⚡ Fizika: ON";
+            } else {
+                simulation.stop();
+                btn.textContent = "⚡ Fizika: OFF";
+            }
+        }
+
+        function centerGraph() {
+            const bounds = g.node().getBBox();
+            const fullWidth = bounds.width;
+            const fullHeight = bounds.height;
+            const midX = bounds.x + fullWidth / 2;
+            const midY = bounds.y + fullHeight / 2;
+
+            const scale = 0.8 / Math.max(fullWidth / width, fullHeight / height);
+            const translate = [width / 2 - scale * midX, height / 2 - scale * midY];
+
+            svg.transition()
+                .duration(750)
+                .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+        }
+
+        svg.on("click", function(event) {
+            if (event.target === this) {
+                resetGraph();
+            }
+        });
+
+        setTimeout(centerGraph, 1000);
+    </script>
+</body>
+</html>
